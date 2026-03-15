@@ -1,0 +1,64 @@
+---
+description: 八方旅人小工具项目架构、技术栈和开发上下文
+alwaysApply: true
+---
+
+# Octopath Helper - 项目概览
+
+桌面端悬浮小工具，为《八方旅人》游戏提供指令打勾和弱点打勾功能。
+
+## 功能
+
+- **指令打勾** — 白天/晚上 × 4 列动作（打倒人/获取NPC道具/拉人进队/获取情报），每格对应一个角色职业
+- **弱点打勾** — 武器一行（剑/长枪/短剑/斧头/弓/杖）+ 元素一行（火/冰/雷/风/光/暗）
+- **标签页切换** — 指令/弱点两个页面通过自定义 tab 按钮 + QStackedWidget 切换
+- **一键清空** — 清空当前页所有勾选
+- **黑/白主题** — 一键切换，SVG 月亮/太阳图标
+- **状态持久化** — 勾选状态、窗口位置、主题偏好保存到 `data/state.json`
+- **桌面快捷方式** — `setup_shortcut.py` 生成桌面快捷方式（无命令行窗口）
+
+## 技术栈
+
+| 模块 | 方案 |
+|------|------|
+| UI 框架 | PyQt6（无边框、置顶、透明背景） |
+| 磨砂效果 | Windows DWM API（ctypes 调用 user32/dwmapi） |
+| 字体 | HarmonyOS Sans SC Medium（华为鸿蒙字体，免费商用） |
+| 图标 | SVG 内联渲染（Feather Icons 风格月亮/太阳） |
+| 状态存储 | JSON 文件（data/state.json） |
+
+## 项目结构
+
+```
+octopath-helper/
+├── main.py              # 入口 + 全部 UI 逻辑（HelperWindow）
+├── ui/
+│   ├── __init__.py
+│   └── acrylic.py       # Windows Acrylic 磨砂 + DWM 圆角阴影
+├── assets/
+│   ├── fonts/
+│   │   └── HarmonyOS_SansSC_Medium.ttf
+│   └── icon.ico         # 应用图标（setup_shortcut.py 生成）
+├── data/                # 运行时数据（state.json）
+├── setup_shortcut.py    # 生成桌面快捷方式
+├── run.bat              # 一键启动脚本（含自动安装依赖）
+├── requirements.txt
+└── README.md
+```
+
+## 关键设计决策
+
+1. **不用 QTabWidget** — QTabWidget 自带 pane border 和 top 偏移会产生多余横线，改用自定义 QPushButton + QStackedWidget
+2. **$-variable 样式模板** — CSS 大括号与 Python f-string 冲突，使用自定义 `_s()` 函数做 `$var` 替换（按变量名长度倒序避免前缀匹配）
+3. **paintEvent 极低 alpha** — 背景 fill alpha=1，几乎纯透明，依赖 Acrylic 磨砂提供视觉层次
+4. **拖动区域** — 顶部 34px 区域可拖动窗口
+5. **pythonw.exe 启动** — 快捷方式使用 pythonw.exe 避免弹出命令行窗口
+6. **HarmonyOS Sans SC** — 通过 QFontDatabase.addApplicationFont 动态加载，不依赖系统安装
+
+## 虚拟环境
+
+```bash
+d:\AI\octopath-helper\.venv\Scripts\python.exe main.py
+```
+
+执行任何 Python 脚本/pip 命令都使用此 venv。pip 安装用清华源。
