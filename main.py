@@ -25,10 +25,17 @@ from PyQt6.QtWidgets import (
 
 from ui.acrylic import disable_acrylic, enable_acrylic
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "data")
+if getattr(sys, "frozen", False):
+    BUNDLE_DIR = sys._MEIPASS
+    APP_DIR = os.path.dirname(sys.executable)
+else:
+    BUNDLE_DIR = os.path.dirname(os.path.abspath(__file__))
+    APP_DIR = BUNDLE_DIR
+
+DATA_DIR = os.path.join(APP_DIR, "data")
 STATE_FILE = os.path.join(DATA_DIR, "state.json")
-FONT_PATH = os.path.join(BASE_DIR, "assets", "fonts", "HarmonyOS_SansSC_Medium.ttf")
+FONT_PATH = os.path.join(BUNDLE_DIR, "assets", "fonts", "HarmonyOS_SansSC_Medium.ttf")
+ICON_PATH = os.path.join(BUNDLE_DIR, "assets", "icon.ico")
 
 COMMAND_COLS = ["打倒人", "获取NPC道具", "拉人进队", "获取情报"]
 DAY_ROWS = [
@@ -96,6 +103,8 @@ class HelperWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setWindowTitle("八方旅人小工具")
+        if os.path.exists(ICON_PATH):
+            self.setWindowIcon(QIcon(ICON_PATH))
         self.setMinimumSize(500, 170)
         self.resize(570, 200)
 
@@ -476,9 +485,20 @@ class HelperWindow(QWidget):
 
 
 def main():
+    import ctypes
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+        ctypes.c_wchar_p("laigus.octopath-helper")
+    )
+
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(True)
+
+    if os.path.exists(ICON_PATH):
+        app.setWindowIcon(QIcon(ICON_PATH))
+
     w = HelperWindow()
+    if os.path.exists(ICON_PATH):
+        w.setWindowIcon(QIcon(ICON_PATH))
     w.show()
     sys.exit(app.exec())
 

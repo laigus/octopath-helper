@@ -31,8 +31,18 @@ alwaysApply: false
 - 所有状态保存到 `data/state.json`（勾选、窗口位置、主题）
 - 每次勾选变化自动保存
 
+## PyInstaller 打包
+- 使用 `--onefile --windowed` 打包为单文件无控制台 EXE
+- `--icon="assets\icon.ico"` 嵌入自定义图标到 EXE（解决任务栏图标问题）
+- `--add-data="assets;assets"` 和 `--add-data="ui;ui"` 打包资源
+- `main.py` 中通过 `sys.frozen` 区分打包/开发模式：
+  - 打包模式：`BUNDLE_DIR = sys._MEIPASS`（临时解压目录，放资源）、`APP_DIR = os.path.dirname(sys.executable)`（EXE 所在目录，放数据）
+  - 开发模式：两者都指向项目根目录
+- 修改代码后必须重新打包才能生效
+
 ## 文件组织
 - 所有 UI 逻辑集中在 `main.py`（项目较小，不需要拆分）
 - Windows API 封装放 `ui/acrylic.py`
 - 字体文件放 `assets/fonts/`
 - 运行时数据放 `data/`
+- 打包输出放 `dist/`（已加入 .gitignore）

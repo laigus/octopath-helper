@@ -38,10 +38,11 @@ octopath-helper/
 ├── assets/
 │   ├── fonts/
 │   │   └── HarmonyOS_SansSC_Medium.ttf
-│   └── icon.ico         # 应用图标（setup_shortcut.py 生成）
+│   └── icon.ico         # 应用图标（多尺寸 ICO）
+├── dist/
+│   └── 八方旅人小工具.exe  # PyInstaller 打包输出
 ├── data/                # 运行时数据（state.json）
-├── setup_shortcut.py    # 生成桌面快捷方式
-├── run.bat              # 一键启动脚本（含自动安装依赖）
+├── setup_shortcut.py    # 生成桌面快捷方式（优先指向 dist/*.exe）
 ├── requirements.txt
 └── README.md
 ```
@@ -52,8 +53,20 @@ octopath-helper/
 2. **$-variable 样式模板** — CSS 大括号与 Python f-string 冲突，使用自定义 `_s()` 函数做 `$var` 替换（按变量名长度倒序避免前缀匹配）
 3. **paintEvent 极低 alpha** — 背景 fill alpha=1，几乎纯透明，依赖 Acrylic 磨砂提供视觉层次
 4. **拖动区域** — 顶部 34px 区域可拖动窗口
-5. **pythonw.exe 启动** — 快捷方式使用 pythonw.exe 避免弹出命令行窗口
-6. **HarmonyOS Sans SC** — 通过 QFontDatabase.addApplicationFont 动态加载，不依赖系统安装
+5. **PyInstaller 打包** — 打包为独立 `.exe`，嵌入自定义图标，解决 Windows 任务栏显示 Python 图标的问题
+6. **`sys.frozen` 路径分离** — 打包模式下资源文件从 `sys._MEIPASS` 读取，数据文件从 `.exe` 所在目录读取
+7. **HarmonyOS Sans SC** — 通过 QFontDatabase.addApplicationFont 动态加载，不依赖系统安装
+8. **SetCurrentProcessExplicitAppUserModelID** — 让 Windows 识别为独立应用，任务栏不归到 python.exe 下
+
+## 打包
+
+修改代码后需要重新打包：
+
+```powershell
+.venv\Scripts\pyinstaller.exe --noconfirm --onefile --windowed --icon="assets\icon.ico" --name="八方旅人小工具" --add-data="assets;assets" --add-data="ui;ui" main.py
+```
+
+输出到 `dist\八方旅人小工具.exe`。桌面快捷方式通过 `setup_shortcut.py` 生成（自动检测 dist/*.exe）。
 
 ## 虚拟环境
 

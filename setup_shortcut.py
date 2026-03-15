@@ -7,6 +7,7 @@ import sys
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ICON_PATH = os.path.join(BASE_DIR, "assets", "icon.ico")
+DIST_EXE = os.path.join(BASE_DIR, "dist", "八方旅人小工具.exe")
 VENV_PYTHONW = os.path.join(BASE_DIR, ".venv", "Scripts", "pythonw.exe")
 MAIN_PY = os.path.join(BASE_DIR, "main.py")
 
@@ -56,22 +57,36 @@ def _create_shortcut():
     desktop = os.path.join(os.path.expanduser("~"), "Desktop")
     shortcut_path = os.path.join(desktop, "八方旅人小工具.lnk")
 
-    target = VENV_PYTHONW
-    if not os.path.exists(target):
-        target = os.path.join(BASE_DIR, ".venv", "Scripts", "python.exe")
+    if os.path.exists(DIST_EXE):
+        target = DIST_EXE
+        arguments = ""
+        work_dir = os.path.dirname(DIST_EXE)
+        icon_arg = DIST_EXE
+        print(f"[INFO] Using packaged exe: {DIST_EXE}")
+    else:
+        target = VENV_PYTHONW
+        if not os.path.exists(target):
+            target = os.path.join(BASE_DIR, ".venv", "Scripts", "python.exe")
+        arguments = f'"""{MAIN_PY}"""'
+        work_dir = BASE_DIR
+        icon_arg = ICON_PATH if os.path.exists(ICON_PATH) else ""
+        print(f"[INFO] Using Python: {target}")
 
-    icon_arg = ICON_PATH if os.path.exists(ICON_PATH) else ""
+    vbs_lines = [
+        'Set WshShell = CreateObject("WScript.Shell")',
+        f'Set oLink = WshShell.CreateShortcut("{shortcut_path}")',
+        f'oLink.TargetPath = "{target}"',
+    ]
+    if arguments:
+        vbs_lines.append(f'oLink.Arguments = {arguments}')
+    vbs_lines.append(f'oLink.WorkingDirectory = "{work_dir}"')
+    vbs_lines.append('oLink.WindowStyle = 7')
+    if icon_arg:
+        vbs_lines.append(f'oLink.IconLocation = "{icon_arg},0"')
+    vbs_lines.append('oLink.Description = "八方旅人桌面小工具"')
+    vbs_lines.append('oLink.Save')
 
-    vbs = f'''Set WshShell = CreateObject("WScript.Shell")
-Set oLink = WshShell.CreateShortcut("{shortcut_path}")
-oLink.TargetPath = "{target}"
-oLink.Arguments = """{MAIN_PY}"""
-oLink.WorkingDirectory = "{BASE_DIR}"
-oLink.WindowStyle = 7
-{f'oLink.IconLocation = "{icon_arg}"' if icon_arg else ""}
-oLink.Description = "八方旅人桌面小工具"
-oLink.Save
-'''
+    vbs = "\n".join(vbs_lines) + "\n"
 
     vbs_path = os.path.join(BASE_DIR, "_create_shortcut.vbs")
     with open(vbs_path, "w", encoding="gbk") as f:

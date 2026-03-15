@@ -45,11 +45,7 @@ $env:NO_PROXY="*"
 
 之后双击桌面上的 **「八方旅人小工具」** 图标即可启动，无需打开终端。
 
-### 方式二：双击 run.bat
-
-直接双击项目目录下的 `run.bat`，会自动安装依赖并启动（会有命令行窗口）。
-
-### 方式三：命令行启动
+### 方式二：命令行启动（开发调试）
 
 ```powershell
 .venv\Scripts\python.exe main.py
@@ -69,9 +65,34 @@ $env:NO_PROXY="*"
 
 - `data/state.json` — 勾选状态、窗口位置、主题偏好（自动生成）
 
+## 打包为 EXE
+
+如果修改了代码，需要重新打包：
+
+```powershell
+cd d:\AI\octopath-helper
+
+# 安装 PyInstaller（首次）
+.venv\Scripts\pip.exe install pyinstaller -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 打包
+.venv\Scripts\pyinstaller.exe --noconfirm --onefile --windowed --icon="assets\icon.ico" --name="八方旅人小工具" --add-data="assets;assets" --add-data="ui;ui" main.py
+```
+
+打包完成后 `dist\八方旅人小工具.exe` 即为独立可执行文件，双击即可运行。
+
+如需更新桌面快捷方式（指向打包后的 EXE）：
+
+```powershell
+.venv\Scripts\python.exe setup_shortcut.py
+```
+
+> **注意**：`main.py` 中通过 `sys.frozen` 判断是否处于打包模式。打包模式下资源文件从 `sys._MEIPASS`（临时解压目录）读取，而 `data/state.json` 从 `.exe` 所在目录读取。
+
 ## 技术栈
 
 - Python + PyQt6（无边框置顶窗口）
+- PyInstaller（打包为独立 EXE，嵌入自定义图标）
 - Windows DWM API（Acrylic 磨砂 + 圆角阴影）
 - HarmonyOS Sans SC（华为鸿蒙字体）
 - SVG 图标渲染（月亮/太阳主题切换）
