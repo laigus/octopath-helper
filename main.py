@@ -82,7 +82,8 @@ class HelperWindow(QWidget):
         self._drag_offset: QPoint | None = None
         self._acrylic_applied = False
         self._boxes: dict[str, QCheckBox] = {}
-        self._groups: dict[str, list[QCheckBox]] = {"cmd": [], "weak": []}
+        self._groups: dict[str, list[QCheckBox]] = {"cmd": []}
+        self._weak_pages: list[dict] = []  # [{widget, boxes, group, tab_btn, del_btn}]
         self._state = self._load_state()
         self._theme: str = self._state.get("theme", "dark")
         if self._theme not in ("dark", "light"):
@@ -117,13 +118,25 @@ class HelperWindow(QWidget):
         bar.setSpacing(3)
 
         self._tab_btns: list[QPushButton] = []
-        for i, name in enumerate(["指令", "弱点"]):
-            btn = QPushButton(name)
-            btn.setObjectName("tabBtn")
-            btn.setCheckable(True)
-            btn.clicked.connect(lambda _, idx=i: self._switch_tab(idx))
-            bar.addWidget(btn)
-            self._tab_btns.append(btn)
+        self._tab_bar = bar
+
+        btn_cmd = QPushButton("指令")
+        btn_cmd.setObjectName("tabBtn")
+        btn_cmd.setCheckable(True)
+        btn_cmd.clicked.connect(lambda: self._switch_tab(0))
+        bar.addWidget(btn_cmd)
+        self._tab_btns.append(btn_cmd)
+
+        self._weak_tab_layout = QHBoxLayout()
+        self._weak_tab_layout.setSpacing(2)
+        bar.addLayout(self._weak_tab_layout)
+
+        self._add_weak_btn = QPushButton("+")
+        self._add_weak_btn.setObjectName("toolBtn")
+        self._add_weak_btn.setFixedSize(24, 24)
+        self._add_weak_btn.setToolTip("新增怪物弱点页")
+        self._add_weak_btn.clicked.connect(self._add_weakness_page)
+        bar.addWidget(self._add_weak_btn)
 
         bar.addStretch()
 
@@ -156,8 +169,11 @@ class HelperWindow(QWidget):
         # --- stacked pages ---
         self._stack = QStackedWidget()
         self._stack.addWidget(self._page_commands())
-        self._stack.addWidget(self._page_weakness())
         root.addWidget(self._stack)
+
+        weak_count = max(1, self._state.get("weak_page_count", 1))
+        for _ in range(weak_count):
+            self._add_weakness_page(restore=True)
 
         self._switch_tab(0)
         self._apply_theme()
@@ -196,29 +212,33 @@ class HelperWindow(QWidget):
             grid.setColumnStretch(c, 2)
         return page
 
-    def _page_weakness(self) -> QWidget:
+    def _page_weakness(self, page_idx: int) -> QWidget:
         page = QWidget()
         vbox = QVBoxLayout(page)
         vbox.setContentsMargins(0, 2, 0, 0)
         vbox.setSpacing(4)
 
+        boxes: list[QCheckBox] = []
+
         w_row = QHBoxLayout()
         w_row.setSpacing(0)
         for i, name in enumerate(WEAPON_ITEMS):
-            cell = self._weak_cell(name, f"weak_w_{i}", None)
+            key = f"weak{page_idx}_w_{i}"
+            cell = self._weak_cell(name, key, None, boxes)
             w_row.addWidget(cell)
         vbox.addLayout(w_row)
 
         e_row = QHBoxLayout()
         e_row.setSpacing(0)
         for i, (name, bg) in enumerate(ELEMENT_ITEMS):
-            cell = self._weak_cell(name, f"weak_e_{i}", bg)
+            key = f"weak{page_idx}_e_{i}"
+            cell = self._weak_cell(name, key, bg, boxes)
             e_row.addWidget(cell)
         vbox.addLayout(e_row)
 
-        return page
+        return page, boxes
 
-    def _weak_cell(self, name: str, key: str, bg: str | None) -> QWidget:
+    def _weak_cell(self, name: str, key: str, bg: str | None, boxes: list[QCheckBox]) -> QWidget:
         cell = QWidget()
         vb = QVBoxLayout(cell)
         vb.setContentsMargins(2, 3, 2, 3)
@@ -234,31 +254,140 @@ class HelperWindow(QWidget):
             )
         vb.addWidget(lbl, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        cb = self._cb("", key, "weak")
+        cb = self._cb("", key, None)
         cb.setObjectName("weakBox")
+        boxes.append(cb)
         vb.addWidget(cb, alignment=Qt.AlignmentFlag.AlignCenter)
         return cell
 
-    def _cb(self, text: str, key: str, group: str, color: str | None = None) -> QCheckBox:
+    def _cb(self, text: str, key: str, group: str | None, color: str | None = None) -> QCheckBox:
         cb = QCheckBox(text)
         if color:
             cb.setStyleSheet(f"QCheckBox {{ color: {color}; }}")
         cb.toggled.connect(self._save)
         self._boxes[key] = cb
-        self._groups[group].append(cb)
+        if group:
+            self._groups[group].append(cb)
         return cb
+
+    # ── weakness page management ──
+
+    def _add_weakness_page(self, restore: bool = False):
+        page_idx = len(self._weak_pages)
+        page_widget, boxes = self._page_weakness(page_idx)
+        stack_idx = self._stack.addWidget(page_widget)
+
+        tab_container = QWidget()
+        tab_layout = QHBoxLayout(tab_container)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+        tab_layout.setSpacing(1)
+
+        label = f"弱点" if page_idx == 0 else f"弱点{page_idx + 1}"
+        tab_btn = QPushButton(label)
+        tab_btn.setObjectName("tabBtn")
+        tab_btn.setCheckable(True)
+        tab_btn.clicked.connect(lambda _, si=stack_idx: self._switch_tab(si))
+        tab_layout.addWidget(tab_btn)
+        self._tab_btns.append(tab_btn)
+
+        del_btn = None
+        if page_idx > 0:
+            del_btn = QPushButton("×")
+            del_btn.setObjectName("weakDelBtn")
+            del_btn.setFixedSize(18, 18)
+            del_btn.setToolTip("删除此弱点页")
+            del_btn.clicked.connect(lambda _, pi=page_idx: self._remove_weakness_page(pi))
+            tab_layout.addWidget(del_btn)
+
+        self._weak_tab_layout.addWidget(tab_container)
+
+        info = {
+            "widget": page_widget,
+            "boxes": boxes,
+            "tab_btn": tab_btn,
+            "del_btn": del_btn,
+            "tab_container": tab_container,
+            "stack_idx": stack_idx,
+        }
+        self._weak_pages.append(info)
+
+        if not restore:
+            self._save()
+            self._switch_tab(stack_idx)
+
+    def _remove_weakness_page(self, page_idx: int):
+        if page_idx <= 0 or page_idx >= len(self._weak_pages):
+            return
+
+        info = self._weak_pages[page_idx]
+
+        for cb in info["boxes"]:
+            key = next((k for k, v in self._boxes.items() if v is cb), None)
+            if key:
+                del self._boxes[key]
+
+        self._tab_btns.remove(info["tab_btn"])
+        self._stack.removeWidget(info["widget"])
+        info["widget"].deleteLater()
+        info["tab_container"].deleteLater()
+        self._weak_pages.pop(page_idx)
+
+        self._rebuild_weak_tabs()
+        self._switch_tab(0)
+        self._save()
+
+    def _rebuild_weak_tabs(self):
+        """Rebuild tab labels and reconnect signals after a page removal."""
+        for i, info in enumerate(self._weak_pages):
+            label = "弱点" if i == 0 else f"弱点{i + 1}"
+            info["tab_btn"].setText(label)
+            stack_idx = self._stack.indexOf(info["widget"])
+            info["stack_idx"] = stack_idx
+
+            try:
+                info["tab_btn"].clicked.disconnect()
+            except TypeError:
+                pass
+            info["tab_btn"].clicked.connect(lambda _, si=stack_idx: self._switch_tab(si))
+
+            if info["del_btn"]:
+                try:
+                    info["del_btn"].clicked.disconnect()
+                except TypeError:
+                    pass
+                info["del_btn"].clicked.connect(lambda _, pi=i: self._remove_weakness_page(pi))
+
+            old_keys = [k for k, v in self._boxes.items() if v in info["boxes"]]
+            for k in old_keys:
+                del self._boxes[k]
+            for j, cb in enumerate(info["boxes"]):
+                if j < len(WEAPON_ITEMS):
+                    new_key = f"weak{i}_w_{j}"
+                else:
+                    new_key = f"weak{i}_e_{j - len(WEAPON_ITEMS)}"
+                self._boxes[new_key] = cb
 
     # ── tab switching ──
 
-    def _switch_tab(self, idx: int):
-        self._stack.setCurrentIndex(idx)
-        for i, btn in enumerate(self._tab_btns):
-            btn.setChecked(i == idx)
+    def _switch_tab(self, stack_idx: int):
+        self._stack.setCurrentIndex(stack_idx)
+        self._tab_btns[0].setChecked(stack_idx == 0)
+        for info in self._weak_pages:
+            info["tab_btn"].setChecked(
+                self._stack.indexOf(info["widget"]) == stack_idx
+            )
 
     def _clear_current(self):
-        group = "cmd" if self._stack.currentIndex() == 0 else "weak"
-        for cb in self._groups[group]:
-            cb.setChecked(False)
+        si = self._stack.currentIndex()
+        if si == 0:
+            for cb in self._groups["cmd"]:
+                cb.setChecked(False)
+        else:
+            for info in self._weak_pages:
+                if self._stack.indexOf(info["widget"]) == si:
+                    for cb in info["boxes"]:
+                        cb.setChecked(False)
+                    break
         self._save()
 
     # ── theme ──
@@ -347,6 +476,19 @@ class HelperWindow(QWidget):
                 background: $close_hov;
                 color: #fff;
             }
+            QPushButton#weakDelBtn {
+                border: none;
+                border-radius: 3px;
+                background: transparent;
+                font-size: 12px;
+                font-weight: 700;
+                color: $fg2;
+                padding: 0;
+            }
+            QPushButton#weakDelBtn:hover {
+                background: $close_hov;
+                color: #fff;
+            }
             QLabel#colHeader {
                 font-size: 12px;
                 font-weight: 600;
@@ -410,8 +552,12 @@ class HelperWindow(QWidget):
             return {}
 
     def _restore_checks(self):
-        for k, v in self._state.get("checks", {}).items():
-            cb = self._boxes.get(k)
+        checks = self._state.get("checks", {})
+        for k, v in checks.items():
+            mapped_key = k
+            if k.startswith("weak_w_") or k.startswith("weak_e_"):
+                mapped_key = k.replace("weak_", "weak0_", 1)
+            cb = self._boxes.get(mapped_key)
             if cb:
                 cb.setChecked(bool(v))
 
@@ -430,6 +576,7 @@ class HelperWindow(QWidget):
                 "window_pos": [self.x(), self.y()],
                 "checks": {k: cb.isChecked() for k, cb in self._boxes.items()},
                 "theme": self._theme,
+                "weak_page_count": len(self._weak_pages),
             }, f, ensure_ascii=False, indent=2)
 
     # ── acrylic / painting ──
